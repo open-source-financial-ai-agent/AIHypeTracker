@@ -1,3 +1,7 @@
+# Product Demo
+<img width="1355" height="954" alt="image" src="https://github.com/user-attachments/assets/2082f9a6-217e-4a25-a0de-cd6f50b3cac2" />
+
+
 # Contracted Companies Analyzer Agent
 
 An AI agent that finds contracted companies for big tech companies and analyzes their public trading status for investment opportunities.
