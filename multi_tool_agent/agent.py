@@ -5,7 +5,8 @@ from google import genai
 from google.genai import types
 import yfinance as yf
 import os
-from typing import List, Dict
+import json
+from typing import List, Dict, Optional, Union
 
 def get_weather(city: str) -> dict:
     """Retrieves the current weather report for a specified city.
@@ -257,16 +258,182 @@ def check_public_trading_status(company_names: str) -> dict:
         }
 
 
+def get_company_financial_metrics(stock_ticker: str) -> dict:
+    """Gets key financial metrics for a company from its stock ticker and calculates profit margins.
+
+    Args:
+        stock_ticker (str): The stock ticker symbol (e.g., "ORCL", "MSFT", "AAPL").
+
+    Returns:
+        dict: JSON-formatted financial metrics including calculated margins.
+    """
+    try:
+        ticker = yf.Ticker(stock_ticker.upper())
+
+        # Get company info for basic data
+        info = ticker.info
+
+        # Get financial statements (income statement)
+        financials = ticker.financials
+
+        if financials.empty or not info:
+            return {
+                "status": "error",
+                "error_message": f"No financial data found for ticker '{stock_ticker}'. Please verify the ticker symbol is correct."
+            }
+
+        # Get the most recent year of financial data
+        latest_year = financials.columns[0]
+
+        # Helper function to safely get financial data
+        def safe_get_financial(metric_name: str, source: str = 'financials') -> Optional[float]:
+            try:
+                if source == 'financials':
+                    if metric_name in financials.index:
+                        value = financials.loc[metric_name, latest_year]
+                        return float(value) if value and str(value) != 'nan' else None
+                elif source == 'info':
+                    return info.get(metric_name)
+                return None
+            except:
+                return None
+
+        # Extract key financial metrics
+        metrics = {
+            # Company Information
+            "company_name": info.get('longName', info.get('shortName', stock_ticker)),
+            "ticker": stock_ticker.upper(),
+            "currency": info.get('currency', 'USD'),
+            "fiscal_year_end": str(latest_year.date()) if latest_year else None,
+
+            # Market Metrics
+            "market_cap": info.get('marketCap'),
+            "enterprise_value": info.get('enterpriseValue'),
+
+            # Revenue Metrics
+            "annual_revenue": safe_get_financial('Total Revenue') or info.get('totalRevenue'),
+            "cost_of_goods_sold": safe_get_financial('Cost Of Revenue'),
+
+            # Profitability Metrics
+            "gross_profit": safe_get_financial('Gross Profit'),
+            "operating_income": safe_get_financial('Operating Income'),
+            "net_income": safe_get_financial('Net Income'),
+
+            # Interest Metrics
+            "interest_income": safe_get_financial('Interest Income'),
+            "interest_expense": safe_get_financial('Interest Expense'),
+            "net_interest_income": safe_get_financial('Net Interest Income'),
+
+            # Other Key Metrics
+            "total_expenses": safe_get_financial('Total Expenses'),
+            "operating_expenses": safe_get_financial('Operating Expense'),
+            "ebitda": safe_get_financial('EBITDA'),
+            "ebit": safe_get_financial('EBIT'),
+        }
+
+        # Calculate profit margins
+        annual_revenue = metrics["annual_revenue"]
+        calculated_margins = {}
+
+        if annual_revenue and annual_revenue > 0:
+            # Gross Profit Margin = (Gross Profit / Annual Revenue) * 100
+            if metrics["gross_profit"]:
+                calculated_margins["gross_profit_margin_percent"] = round(
+                    (metrics["gross_profit"] / annual_revenue) * 100, 2
+                )
+
+            # Operating Profit Margin = (Operating Income / Annual Revenue) * 100
+            if metrics["operating_income"]:
+                calculated_margins["operating_profit_margin_percent"] = round(
+                    (metrics["operating_income"] / annual_revenue) * 100, 2
+                )
+
+            # Net Profit Margin = (Net Income / Annual Revenue) * 100
+            if metrics["net_income"]:
+                calculated_margins["net_profit_margin_percent"] = round(
+                    (metrics["net_income"] / annual_revenue) * 100, 2
+                )
+
+            # EBITDA Margin = (EBITDA / Annual Revenue) * 100
+            if metrics["ebitda"]:
+                calculated_margins["ebitda_margin_percent"] = round(
+                    (metrics["ebitda"] / annual_revenue) * 100, 2
+                )
+
+        # Add pre-calculated margins from yfinance info if available
+        yfinance_margins = {
+            "yf_gross_margin_percent": round(info.get('grossMargins', 0) * 100, 2) if info.get('grossMargins') else None,
+            "yf_operating_margin_percent": round(info.get('operatingMargins', 0) * 100, 2) if info.get('operatingMargins') else None,
+            "yf_profit_margin_percent": round(info.get('profitMargins', 0) * 100, 2) if info.get('profitMargins') else None,
+        }
+
+        # Combine all data
+        financial_data = {
+            **metrics,
+            **calculated_margins,
+            **yfinance_margins
+        }
+
+        # Format large numbers for display
+        def format_currency(value: Optional[float]) -> str:
+            if value is None:
+                return "N/A"
+            if abs(value) >= 1e12:
+                return f"${value/1e12:.2f}T"
+            elif abs(value) >= 1e9:
+                return f"${value/1e9:.2f}B"
+            elif abs(value) >= 1e6:
+                return f"${value/1e6:.2f}M"
+            elif abs(value) >= 1e3:
+                return f"${value/1e3:.2f}K"
+            else:
+                return f"${value:,.2f}"
+
+        # Create formatted summary
+        summary = {
+            "company": financial_data["company_name"],
+            "ticker": financial_data["ticker"],
+            "market_cap": format_currency(financial_data["market_cap"]),
+            "annual_revenue": format_currency(financial_data["annual_revenue"]),
+            "gross_profit": format_currency(financial_data["gross_profit"]),
+            "operating_income": format_currency(financial_data["operating_income"]),
+            "net_income": format_currency(financial_data["net_income"]),
+            "gross_margin": f"{financial_data.get('gross_profit_margin_percent', 'N/A')}%" if financial_data.get('gross_profit_margin_percent') else "N/A",
+            "operating_margin": f"{financial_data.get('operating_profit_margin_percent', 'N/A')}%" if financial_data.get('operating_profit_margin_percent') else "N/A",
+            "net_margin": f"{financial_data.get('net_profit_margin_percent', 'N/A')}%" if financial_data.get('net_profit_margin_percent') else "N/A"
+        }
+
+        return {
+            "status": "success",
+            "summary": summary,
+            "detailed_metrics": financial_data,
+            "json_data": json.dumps(financial_data, indent=2, default=str),
+            "fiscal_year": str(latest_year.date()) if latest_year else "Unknown"
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "error_message": f"Unable to retrieve financial data for '{stock_ticker}': {str(e)}"
+        }
+
+
 root_agent = Agent(
-    name="contracted_companies_analyzer",
+    name="financial_investment_analyzer",
     model="gemini-2.0-flash",
     description=(
-        "Agent to find contracted companies for big tech companies and analyze their public trading status for investment opportunities."
+        "Comprehensive financial analysis agent that finds contracted companies, analyzes public trading status, "
+        "and provides detailed financial metrics with profit margins for investment decision-making."
     ),
     instruction=(
-        "You are a helpful agent who can find contracted companies, partners, and suppliers for major tech companies "
-        "and determine which ones are publicly traded. This helps users identify potential investment opportunities "
-        "based on corporate relationships. You can also provide weather and time information when needed."
+        "You are a comprehensive financial analysis agent with the following capabilities:\n"
+        "1. Find contracted companies, partners, and suppliers for major tech companies using web search\n"
+        "2. Determine which companies are publicly traded and provide stock symbols\n"
+        "3. Get detailed financial metrics including market cap, revenue, profit margins, and key ratios\n"
+        "4. Calculate and analyze profit margins (gross, operating, net) for investment analysis\n"
+        "5. Provide weather and time information when needed\n\n"
+        "Use these tools to help users identify investment opportunities based on corporate relationships "
+        "and comprehensive financial analysis."
     ),
-    tools=[find_contracted_companies, check_public_trading_status, get_weather, get_current_time],
+    tools=[find_contracted_companies, check_public_trading_status, get_company_financial_metrics, get_weather, get_current_time],
 )
