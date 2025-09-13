@@ -81,7 +81,7 @@ def find_contracted_companies(company_name: str) -> dict:
 
         # Create search query
         search_prompt = (
-            f"Find the major contracted companies, business partners, suppliers, and vendors "
+            f"Find the at least five major contracted companies, suppliers, and vendors "
             f"that work with {company_name}. List the company names clearly and focus on "
             f"significant business relationships and partnerships. Include companies that "
             f"provide services or products to {company_name} or have major contracts with them."

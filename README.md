@@ -70,6 +70,40 @@ Both functions return structured dictionaries with:
 - `report`: Human-readable formatted report
 - Additional metadata for programmatic use
 
+## 🌐 **Web Frontend Interface**
+
+We've built a beautiful web frontend that provides an intuitive interface for investment analysis:
+
+### **Features:**
+- 🔍 **Smart Company Search** - Enter any company name to discover investment opportunities
+- 📈 **Real-time Data Visualization** - Interactive charts showing profit margins and financial metrics
+- 💼 **Comprehensive Analysis** - Displays contracted companies with their financial data
+- 📱 **Responsive Design** - Works perfectly on desktop and mobile devices
+- ⚡ **Fast Performance** - Real-time API integration with our financial analysis agent
+
+### **How to Use the Frontend:**
+
+```bash
+# Start the web frontend
+./.venv_current/bin/python3.13 start_frontend.py
+```
+
+Then open your browser to: **http://localhost:8002**
+
+### **What You'll See:**
+1. **Search Interface** - Enter a company name (e.g., "Oracle", "Microsoft")
+2. **Analysis Results** - View contracted companies and their financial metrics
+3. **Data Visualizations** - Interactive charts showing:
+   - Profit margins (Gross, Operating, Net)
+   - Market capitalization comparisons
+   - Revenue and financial health indicators
+4. **Investment Insights** - Comprehensive JSON data for each publicly traded partner
+
+### **Example Search Results:**
+- Input: "Oracle"
+- Output: Financial data for Accenture, Microsoft, Intel, and other Oracle partners
+- Visualizations: Profit margin charts, market cap comparisons, financial health scores
+
 ## 🔑 Requirements
 
 - Google API key (set in multi_tool_agent/.env)
